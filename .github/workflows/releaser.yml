@@ -2,25 +2,38 @@ name: releaser
 
 on:
   push:
-    branches:
-      - '!*'
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+'
+  workflow_dispatch:
+  repository_dispatch:  
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
         uses: actions/checkout@v4
         with:
-          repository: 'https://github.com/cloudfoundry/stratos.git'
-          ref: 'v4.8.1'
+          clean: 'true'
+          submodules: 'true'
       - name: setup go
         uses: actions/setup-go@v5
         with:
           go-version: "1.23"
       - name: package
         run: |
-          TAG="v4.8.1" ./bin/package
+          set -ex
+          pushd stratos-ui
+            git fetch origin master --tags --force
+          popd
+          export GOPATH=$(go env GOPATH)
+          export GOROOT=$(go env GOROOT)
+          export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+          TAG="${{ github.ref_name }}" ./stratos-ui/bin/package
+          mv stratos-ui-v4.8.1.zip stratos-ui.zip
+      - name: release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            stratos-ui.zip

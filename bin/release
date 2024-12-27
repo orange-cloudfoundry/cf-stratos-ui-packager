@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -ex
+
+# Reset the working directory to the root of the repository
+pushd "$(dirname "$0")/.."
+  echo "--> Resetting the working directory to the root of the repository"
+  git reset --hard
+  git fetch origin master --prune --tags --force --prune-tags
+  git checkout master
+  git pull origin master --rebase
+  git submodule update --init --recursive
+  current_tag="$(git for-each-ref refs/tags --sort=-committerdate --format="%(refname:short)" | sed -n '1p')"
+  echo "--> Bumping stratos version"
+  pushd stratos-ui
+    echo "--> Fetching latest version"
+    git fetch origin master --prune --tags --force --prune-tags
+    tag="$(git for-each-ref refs/tags --sort=-committerdate --format="%(refname:short)" | grep -Po "v(.*)" | sed -n '1p')"
+    if [ "${current_tag}" == "${tag}" ]; then
+      echo "--> No new version to bump to"
+      exit 0
+    fi
+    echo "--> Checking out tag ${tag}"
+    git checkout "${tag}"
+  popd
+  echo "--> Committing changes"
+  git add stratos-ui
+  git commit --allow-empty -m "Bump Stratos to ${tag}"
+  git tag "${tag}"
+  echo "--> Pushing changes"
+  git push origin master --tags
+popd

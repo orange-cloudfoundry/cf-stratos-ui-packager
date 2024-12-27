@@ -1,0 +1,58 @@
+name: Update and tag
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+  repository_dispatch:
+
+jobs:
+  update-submodule:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          clean: 'true'
+          submodules: 'true'
+          token: '${{ secrets.GITHUB_TOKEN }}'
+      - name: Fetch tags from submodule 
+        run: |
+          set -ex
+          pushd stratos-ui
+            git fetch origin --tags --force
+            LATEST_TAG="$(git for-each-ref refs/tags --sort=-committerdate --format="%(refname:short)" | grep -Po "v(.*)" | sed -n '1p')"
+            echo "LATEST_TAG=${LATEST_TAG}"
+            echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_ENV
+          popd
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          clean: 'true'
+          submodules: 'true'
+          token: '${{ secrets.GITHUB_TOKEN }}'
+      - name: Get current tag
+        run: |
+          set -ex
+          git fetch origin --tags --force
+          CURRENT_TAG="$(git describe --tags --match="v[0-9]*" HEAD --abbrev=0)"
+          echo "CURRENT_TAG=${CURRENT_TAG}"
+          echo "CURRENT_TAG=${CURRENT_TAG}" >> $GITHUB_ENV
+      - name: Compare tags
+        if: env.LATEST_TAG != env.CURRENT_TAG
+        run: |
+          set -ex
+          echo "Upgrading from ${CURRENT_TAG} to ${LATEST_TAG}"
+          pushd stratos-ui
+            git fetch origin master --tags --force
+            git checkout "${LATEST_TAG}"
+          popd
+          git config --global user.email "slug.team@orange.com" 
+          git config --global user.name "passbot"
+          git add stratos-ui
+          git commit -m "Bump stratos-ui to ${LATEST_TAG}"
+          git tag -a "${LATEST_TAG}" -m "Cutting release ${LATEST_TAG}"   
+          git push origin master
+          git push origin "${LATEST_TAG}"
+          curl -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/workflows/releaser.yml/dispatches" -d "{\"ref\":\"${LATEST_TAG}\"}"
