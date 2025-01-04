@@ -31,7 +31,7 @@ jobs:
           export GOROOT=$(go env GOROOT)
           export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
           TAG="${{ github.ref_name }}" ./stratos-ui/bin/package
-          mv stratos-ui-v4.8.1.zip stratos-ui.zip
+          mv stratos-ui-v*.zip stratos-ui.zip
       - name: release
         uses: softprops/action-gh-release@v2
         with:
