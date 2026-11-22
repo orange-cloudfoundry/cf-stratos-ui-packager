@@ -1,36 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -ex -o pipefail
-
-# Reset the working directory to the root of the repository
-pushd "$(dirname "$0")/.."
-  echo "--> Resetting the working directory to the root of the repository"
-  git reset --hard
-  git fetch origin master --prune --tags --force --prune-tags
-  git checkout master
-  git pull origin master --rebase
-  git submodule update --init --recursive
-  current_tag="$(git for-each-ref refs/tags --sort=-creatordate --count=1 --format="%(refname:short)")"
-  echo "--> Bumping stratos version"
-  pushd stratos-ui
-    echo "--> Fetching latest version"
-    git fetch origin main --prune --tags --force --prune-tags
-    tag="$(git for-each-ref 'refs/tags/v[0-9]*' --sort=-creatordate --count=1 --format="%(refname:short)")"
-    if [ -z "${tag}" ]; then
-      echo "Error: no Stratos version tag found" >&2
-      exit 1
-    fi
-    if [ "${current_tag}" == "${tag}" ]; then
-      echo "--> No new version to bump to"
-      exit 0
-    fi
-    echo "--> Checking out tag ${tag}"
-    git checkout "${tag}"
-  popd
-  echo "--> Committing changes"
-  git add stratos-ui
-  git commit --allow-empty -m "Bump Stratos to ${tag}"
-  git tag "${tag}"
-  echo "--> Pushing changes"
-  git push origin master --tags
-popd
+cd "$(dirname "$0")/.."
+repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+gh workflow run update-and-tag.yml --repo "$repo" --ref master
+echo "Update workflow started for $repo. View its progress with: gh run list --repo $repo --workflow update-and-tag.yml"

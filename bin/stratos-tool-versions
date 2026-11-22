@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source_dir="${1:?A checkout directory is required}"
+for tool in nodejs bun golang; do
+  version="$(awk -v tool="$tool" '$1 == tool { print $2 }' "$source_dir/stratos-ui/.tool-versions")"
+  if [ -z "$version" ]; then
+    echo "Missing $tool version in $source_dir/stratos-ui/.tool-versions" >&2
+    exit 1
+  fi
+  printf '%s=%s\n' "$tool" "$version"
+done

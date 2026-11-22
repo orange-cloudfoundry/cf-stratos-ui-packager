@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+tag="${1:?A release tag is required}"
+source_dir="${2:?A checkout directory is required}"
+git check-ref-format "refs/tags/$tag"
+git -C "$source_dir/stratos-ui" fetch origin --tags --force --prune --prune-tags
+if ! expected="$(git -C "$source_dir/stratos-ui" rev-parse --verify "refs/tags/${tag}^{commit}")"; then
+  echo "Stratos tag $tag does not exist or does not reference a commit" >&2
+  exit 1
+fi
+actual="$(git -C "$source_dir/stratos-ui" rev-parse HEAD)"
+if [ "$actual" != "$expected" ]; then
+  echo "Stratos submodule is at $actual, but tag $tag points to $expected" >&2
+  exit 1
+fi

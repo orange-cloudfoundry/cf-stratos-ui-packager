@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+tag="${1:?A release tag is required}"
+source_dir="${2:?A checkout directory is required}"
+cd "$source_dir/stratos-ui"
+make build cf VERSION="$tag"
+make release cf VERSION="$tag"
+cp "dist/stratos-cf-${tag}.zip" "$GITHUB_WORKSPACE/stratos-ui.zip"

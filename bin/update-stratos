@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+git -C stratos-ui fetch origin --tags --force --prune --prune-tags >&2
+tag="$(git -C stratos-ui for-each-ref 'refs/tags/v[0-9]*' --sort=-creatordate --count=1 --format='%(refname:short)')"
+if [ -z "$tag" ]; then
+  echo "No Stratos version tag found" >&2
+  exit 1
+fi
+target="$(git -C stratos-ui rev-parse --verify "refs/tags/${tag}^{commit}")"
+current="$(git rev-parse HEAD:stratos-ui)"
+
+if git show-ref --verify --quiet "refs/tags/$tag"; then
+  tagged="$(git rev-parse "refs/tags/${tag}:stratos-ui")"
+  if [ "$tagged" != "$target" ] || [ "$current" != "$target" ] ||
+     ! git merge-base --is-ancestor "refs/tags/$tag" HEAD; then
+    echo "Existing tag $tag does not match the current Stratos commit; refusing to move it or downgrade" >&2
+    exit 1
+  fi
+  echo "Stratos $tag is already recorded" >&2
+else
+  git config user.email "github-actions[bot]@users.noreply.github.com"
+  git config user.name "github-actions[bot]"
+  if [ "$current" != "$target" ]; then
+    git -C stratos-ui checkout --detach "$target" >&2
+    git add stratos-ui
+    git commit -m "Bump Stratos to $tag" >&2
+  fi
+  git tag -a "$tag" -m "Cutting release $tag"
+  git push --atomic origin HEAD:refs/heads/master "refs/tags/$tag" >&2
+fi
+printf '%s\n' "$tag"

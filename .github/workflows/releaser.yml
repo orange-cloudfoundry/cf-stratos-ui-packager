@@ -3,55 +3,52 @@ name: releaser
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-beta[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-alpha[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-dev[0-9]+'
+      - 'v[0-9]*'
   workflow_dispatch:
-  repository_dispatch:  
+    inputs:
+      release_tag:
+        description: Stratos release tag (required when running from a branch)
+        required: false
+        type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout
+      - name: Checkout workflow scripts
         uses: actions/checkout@v4
         with:
-          clean: 'true'
-          submodules: 'true'
-      - name: Verify Stratos version
+          ref: master
+      - name: Select release tag
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
         run: |
-          set -e
-          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
-            echo "A release must be run from a tag, not $GITHUB_REF_TYPE: $GITHUB_REF_NAME" >&2
+          set -euo pipefail
+          if [ -z "$INPUT_TAG" ] && [ "$GITHUB_REF_TYPE" != tag ]; then
+            echo "Select a tag or provide release_tag" >&2
             exit 1
           fi
-          git -C stratos-ui fetch origin --tags --force --prune --prune-tags
-          if ! expected_commit="$(git -C stratos-ui rev-parse --verify "refs/tags/${GITHUB_REF_NAME}^{commit}")"; then
-            echo "Stratos tag $GITHUB_REF_NAME does not exist or does not reference a commit" >&2
-            exit 1
-          fi
-          actual_commit="$(git -C stratos-ui rev-parse HEAD)"
-          if [ "$actual_commit" != "$expected_commit" ]; then
-            echo "Stratos submodule is at $actual_commit, but tag $GITHUB_REF_NAME points to $expected_commit" >&2
-            exit 1
-          fi
+          tag="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          git check-ref-format "refs/tags/$tag"
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+      - name: Checkout release
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          path: release-source
+          submodules: true
+      - name: Verify Stratos version
+        run: bash bin/verify-stratos "$RELEASE_TAG" release-source
       - name: Read Stratos tool versions
         id: versions
-        run: |
-          set -e
-          for tool in nodejs bun golang; do
-            version="$(awk -v tool="$tool" '$1 == tool { print $2 }' stratos-ui/.tool-versions)"
-            if [ -z "$version" ]; then
-              echo "Missing $tool version in stratos-ui/.tool-versions" >&2
-              exit 1
-            fi
-            echo "$tool=$version" >> "$GITHUB_OUTPUT"
-          done
+        run: bash bin/stratos-tool-versions release-source >> "$GITHUB_OUTPUT"
       - name: setup node
         uses: actions/setup-node@v4
         with:
@@ -66,20 +63,17 @@ jobs:
           go-version: ${{ steps.versions.outputs.golang }}
           cache: false
       - name: Install dependencies
-        working-directory: stratos-ui
+        working-directory: release-source/stratos-ui
         run: bun install --frozen-lockfile
       - name: package
-        working-directory: stratos-ui
         env:
           NODE_ENV: production
           NODE_OPTIONS: --max-old-space-size=5500
-        run: |
-          set -ex -o pipefail
-          make build cf VERSION="$GITHUB_REF_NAME"
-          make release cf VERSION="$GITHUB_REF_NAME"
-          cp "dist/stratos-cf-${GITHUB_REF_NAME}.zip" ../stratos-ui.zip
+        run: bash bin/package-stratos "$RELEASE_TAG" release-source
       - name: release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          fail_on_unmatched_files: true
           files: |
             stratos-ui.zip
