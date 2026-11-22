@@ -14,8 +14,8 @@ pushd "$(dirname "$0")/.."
   echo "--> Bumping stratos version"
   pushd stratos-ui
     echo "--> Fetching latest version"
-    git fetch origin master --prune --tags --force --prune-tags
-    tag="$(git for-each-ref refs/tags --sort=-committerdate --format="%(refname:short)" | grep -Po "v(.*)" | sed -n '1p')"
+    git fetch origin main --prune --tags --force --prune-tags
+    tag="$(git for-each-ref refs/tags --sort=-committerdate --format="%(refname:short)" | grep -o "v.*" | sed -n '1p')"
     if [ "${current_tag}" == "${tag}" ]; then
       echo "--> No new version to bump to"
       exit 0
