@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+set -ex -o pipefail
 
 # Reset the working directory to the root of the repository
 pushd "$(dirname "$0")/.."
@@ -10,12 +10,16 @@ pushd "$(dirname "$0")/.."
   git checkout master
   git pull origin master --rebase
   git submodule update --init --recursive
-  current_tag="$(git for-each-ref refs/tags --sort=-committerdate --format="%(refname:short)" | sed -n '1p')"
+  current_tag="$(git for-each-ref refs/tags --sort=-creatordate --count=1 --format="%(refname:short)")"
   echo "--> Bumping stratos version"
   pushd stratos-ui
     echo "--> Fetching latest version"
     git fetch origin main --prune --tags --force --prune-tags
-    tag="$(git for-each-ref refs/tags --sort=-committerdate --format="%(refname:short)" | grep -o "v.*" | sed -n '1p')"
+    tag="$(git for-each-ref 'refs/tags/v[0-9]*' --sort=-creatordate --count=1 --format="%(refname:short)")"
+    if [ -z "${tag}" ]; then
+      echo "Error: no Stratos version tag found" >&2
+      exit 1
+    fi
     if [ "${current_tag}" == "${tag}" ]; then
       echo "--> No new version to bump to"
       exit 0
