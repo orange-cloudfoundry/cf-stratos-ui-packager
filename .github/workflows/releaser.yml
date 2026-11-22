@@ -28,7 +28,7 @@ jobs:
         run: |
           set -ex
           pushd stratos-ui
-            git fetch origin master --tags --force
+            git fetch origin main --tags --force
           popd
           export GOPATH=$(go env GOPATH)
           export GOROOT=$(go env GOROOT)
