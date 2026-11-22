@@ -33,7 +33,10 @@ The repository includes a GitHub Actions workflow defined in `.github/workflows/
 
 The workflow performs the following steps:
 
-1. Checks out the repository.
-2. Sets up Go.
-3. Packages the `stratos-ui` submodule.
-4. Creates a new release with the packaged files.
+1. Checks out the repository and its recorded `stratos-ui` submodule commit.
+2. Verifies that the workflow runs from a tag and that the submodule commit matches the Stratos tag with the same name.
+3. Sets up Node.js, Bun, and Go using the versions specified by the checked-out Stratos submodule.
+4. Builds and packages Stratos for Cloud Foundry with `make build cf` and `make release cf`.
+5. Creates a new release with the packaged files.
+
+The published `stratos-ui.zip` is a prebuilt Linux/amd64 Cloud Foundry package containing the backend binary, frontend assets, and deployment manifest. Manual workflow runs must select a tag, not a branch. A repository dispatch running on the default branch cannot produce a release.
